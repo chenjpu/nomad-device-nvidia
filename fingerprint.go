@@ -57,7 +57,7 @@ func (d *NvidiaDevice) fingerprint(ctx context.Context, devices chan<- *device.F
 
 // writeFingerprintToChannel makes nvml call and writes response to channel
 func (d *NvidiaDevice) writeFingerprintToChannel(devices chan<- *device.FingerprintResponse) {
-	fingerprintData, err := d.nvmlClient.GetFingerprintData()
+	fingerprintData, err := d.nvmlClient.GetFingerprintData(d.sharded)
 	if err != nil {
 		d.logger.Error("failed to get fingerprint nvidia devices", "error", err)
 		devices <- device.NewFingerprintError(err)
@@ -127,15 +127,17 @@ func (d *NvidiaDevice) fingerprintChanged(allDevices []*nvml.FingerprintDeviceDa
 
 	// check if every device in d.devices is in allDevices
 	fingerprintDeviceMap := make(map[string]struct{})
+	vFingerprintDeviceMap := make(map[string]string)
 	for _, device := range allDevices {
 		fingerprintDeviceMap[device.UUID] = struct{}{}
+		vFingerprintDeviceMap[device.VID] = device.UUID
 	}
 	for id := range d.devices {
 		if _, ok := fingerprintDeviceMap[id]; !ok {
 			changeDetected = true
 		}
 	}
-
+	d.shardedDevices = vFingerprintDeviceMap
 	d.devices = fingerprintDeviceMap
 	return changeDetected
 }
@@ -150,7 +152,7 @@ func deviceGroupFromFingerprintData(groupName string, deviceList []*nvml.Fingerp
 	devices := make([]*device.Device, len(deviceList))
 	for index, dev := range deviceList {
 		devices[index] = &device.Device{
-			ID: dev.UUID,
+			ID: dev.VID,
 			// all fingerprinted devices are "healthy" for now
 			// to get real health data -> dcgm bindings should be used
 			Healthy: true,

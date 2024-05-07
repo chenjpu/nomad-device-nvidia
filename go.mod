@@ -1,6 +1,6 @@
 module github.com/hashicorp/nomad-device-nvidia
 
-go 1.21
+go 1.22
 
 replace (
 	gopkg.in/yaml.v2 => gopkg.in/yaml.v2 v2.4.0

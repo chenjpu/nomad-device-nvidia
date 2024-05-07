@@ -21,10 +21,10 @@ import (
 
 const (
 	// pluginName is the name of the plugin
-	pluginName = "nvidia-gpu"
+	pluginName = "vnd-gpu"
 
 	// vendor is the vendor providing the devices
-	vendor = "nvidia"
+	vendor = "vnd"
 
 	// deviceType is the type of device being returned
 	deviceType = device.DeviceTypeGPU
@@ -73,6 +73,10 @@ var (
 			hclspec.NewAttr("fingerprint_period", "string", false),
 			hclspec.NewLiteral("\"1m\""),
 		),
+		"sharded": hclspec.NewDefault(
+			hclspec.NewAttr("sharded", "number", false),
+			hclspec.NewLiteral("8"),
+		),
 	})
 )
 
@@ -81,6 +85,7 @@ type Config struct {
 	Enabled           bool     `codec:"enabled"`
 	IgnoredGPUIDs     []string `codec:"ignored_gpu_ids"`
 	FingerprintPeriod string   `codec:"fingerprint_period"`
+	Sharded           int      `codec:"sharded"`
 }
 
 // NvidiaDevice contains all plugin specific data
@@ -100,10 +105,12 @@ type NvidiaDevice struct {
 
 	// fingerprintPeriod is how often we should call nvml to get list of devices
 	fingerprintPeriod time.Duration
+	sharded           int
 
 	// devices is the set of detected eligible devices
-	devices    map[string]struct{}
-	deviceLock sync.RWMutex
+	devices        map[string]struct{}
+	shardedDevices map[string]string
+	deviceLock     sync.RWMutex
 
 	logger hclog.Logger
 }
@@ -116,11 +123,13 @@ func NewNvidiaDevice(_ context.Context, log hclog.Logger) *NvidiaDevice {
 		logger.Error("unable to initialize Nvidia driver", "reason", err)
 	}
 	return &NvidiaDevice{
-		logger:        logger,
-		devices:       make(map[string]struct{}),
-		ignoredGPUIDs: make(map[string]struct{}),
-		nvmlClient:    nvmlClient,
-		initErr:       err,
+		logger:         logger,
+		devices:        make(map[string]struct{}),
+		ignoredGPUIDs:  make(map[string]struct{}),
+		shardedDevices: make(map[string]string),
+		nvmlClient:     nvmlClient,
+		initErr:        err,
+		sharded:        8,
 	}
 }
 
@@ -154,7 +163,7 @@ func (d *NvidiaDevice) SetConfig(cfg *base.Config) error {
 		return fmt.Errorf("failed to parse fingerprint period %q: %v", config.FingerprintPeriod, err)
 	}
 	d.fingerprintPeriod = period
-
+	d.sharded = config.Sharded
 	return nil
 }
 
@@ -203,9 +212,12 @@ func (d *NvidiaDevice) Reserve(deviceIDs []string) (*device.ContainerReservation
 	// any of provided deviceIDs is not found in d.devices map
 	d.deviceLock.RLock()
 	var notExistingIDs []string
-	for _, id := range deviceIDs {
-		if _, deviceIDExists := d.devices[id]; !deviceIDExists {
-			notExistingIDs = append(notExistingIDs, id)
+	var dIDs = make([]string, 0, len(deviceIDs))
+	for _, vid := range deviceIDs {
+		if _, deviceIDExists := d.devices[d.shardedDevices[vid]]; !deviceIDExists {
+			notExistingIDs = append(notExistingIDs, vid)
+		} else {
+			dIDs = append(dIDs, d.shardedDevices[vid])
 		}
 	}
 	d.deviceLock.RUnlock()
@@ -215,7 +227,7 @@ func (d *NvidiaDevice) Reserve(deviceIDs []string) (*device.ContainerReservation
 
 	return &device.ContainerReservation{
 		Envs: map[string]string{
-			NvidiaVisibleDevices: strings.Join(deviceIDs, ","),
+			NvidiaVisibleDevices: strings.Join(dIDs, ","),
 		},
 	}, nil
 }

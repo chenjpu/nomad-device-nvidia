@@ -98,7 +98,7 @@ func filterStatsByID(stats []*nvml.StatsData, ids map[string]struct{}) []*nvml.S
 // by DeviceName attribute, populates DeviceGroupStats structure for every group
 // and sends data over provided channel
 func (d *NvidiaDevice) writeStatsToChannel(stats chan<- *device.StatsResponse, timestamp time.Time) {
-	statsData, err := d.nvmlClient.GetStatsData()
+	statsData, err := d.nvmlClient.GetStatsData(d.sharded)
 	if err != nil {
 		d.logger.Error("failed to get nvidia stats", "error", err)
 		stats <- &device.StatsResponse{
@@ -146,7 +146,7 @@ func newNotAvailableDeviceStats(unit, desc string) *structs.StatValue {
 func statsForGroup(groupName string, groupStats []*nvml.StatsData, timestamp time.Time) *device.DeviceGroupStats {
 	instanceStats := make(map[string]*device.DeviceStats)
 	for _, statsItem := range groupStats {
-		instanceStats[statsItem.UUID] = statsForItem(statsItem, timestamp)
+		instanceStats[statsItem.VID] = statsForItem(statsItem, timestamp)
 	}
 
 	return &device.DeviceGroupStats{

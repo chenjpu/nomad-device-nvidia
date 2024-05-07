@@ -10,6 +10,7 @@ import (
 // DeviceData represents common fields for Nvidia device
 type DeviceData struct {
 	UUID       string
+	VID        string
 	DeviceName *string
 	MemoryMiB  *uint64
 	PowerW     *uint
@@ -54,8 +55,8 @@ type StatsData struct {
 
 // NvmlClient describes how users would use nvml library
 type NvmlClient interface {
-	GetFingerprintData() (*FingerprintData, error)
-	GetStatsData() ([]*StatsData, error)
+	GetFingerprintData(shared int) (*FingerprintData, error)
+	GetStatsData(shared int) ([]*StatsData, error)
 }
 
 // nvmlClient implements NvmlClient
@@ -78,7 +79,7 @@ func NewNvmlClient() (*nvmlClient, error) {
 }
 
 // GetFingerprintData returns FingerprintData for available Nvidia devices
-func (c *nvmlClient) GetFingerprintData() (*FingerprintData, error) {
+func (c *nvmlClient) GetFingerprintData(shared int) (*FingerprintData, error) {
 	/*
 		nvml fields to be fingerprinted # nvml_library_call
 		1  - Driver Version             # nvmlSystemGetDriverVersion
@@ -108,28 +109,32 @@ func (c *nvmlClient) GetFingerprintData() (*FingerprintData, error) {
 		return nil, fmt.Errorf("nvidia nvml DeviceCount() error: %v\n", err)
 	}
 
-	allNvidiaGPUResources := make([]*FingerprintDeviceData, numDevices)
-
+	allNvidiaGPUResources := make([]*FingerprintDeviceData, numDevices*uint(shared))
+	var index = 0
 	for i := 0; i < int(numDevices); i++ {
 		deviceInfo, err := c.driver.DeviceInfoByIndex(uint(i))
 		if err != nil {
 			return nil, fmt.Errorf("nvidia nvml DeviceInfoByIndex() error: %v\n", err)
 		}
 
-		allNvidiaGPUResources[i] = &FingerprintDeviceData{
-			DeviceData: &DeviceData{
-				DeviceName: deviceInfo.Name,
-				UUID:       deviceInfo.UUID,
-				MemoryMiB:  deviceInfo.MemoryMiB,
-				PowerW:     deviceInfo.PowerW,
-				BAR1MiB:    deviceInfo.BAR1MiB,
-			},
-			PCIBandwidthMBPerS: deviceInfo.PCIBandwidthMBPerS,
-			CoresClockMHz:      deviceInfo.CoresClockMHz,
-			MemoryClockMHz:     deviceInfo.MemoryClockMHz,
-			DisplayState:       deviceInfo.DisplayState,
-			PersistenceMode:    deviceInfo.PersistenceMode,
-			PCIBusID:           deviceInfo.PCIBusID,
+		for j := range shared {
+			allNvidiaGPUResources[index] = &FingerprintDeviceData{
+				DeviceData: &DeviceData{
+					DeviceName: deviceInfo.Name,
+					VID:        fmt.Sprintf("nvd-%d-%d", i, j),
+					UUID:       deviceInfo.UUID,
+					MemoryMiB:  deviceInfo.MemoryMiB,
+					PowerW:     deviceInfo.PowerW,
+					BAR1MiB:    deviceInfo.BAR1MiB,
+				},
+				PCIBandwidthMBPerS: deviceInfo.PCIBandwidthMBPerS,
+				CoresClockMHz:      deviceInfo.CoresClockMHz,
+				MemoryClockMHz:     deviceInfo.MemoryClockMHz,
+				DisplayState:       deviceInfo.DisplayState,
+				PersistenceMode:    deviceInfo.PersistenceMode,
+				PCIBusID:           deviceInfo.PCIBusID,
+			}
+			index++
 		}
 	}
 	return &FingerprintData{
@@ -139,7 +144,7 @@ func (c *nvmlClient) GetFingerprintData() (*FingerprintData, error) {
 }
 
 // GetStatsData returns statistics data for all devices on this machine
-func (c *nvmlClient) GetStatsData() ([]*StatsData, error) {
+func (c *nvmlClient) GetStatsData(shared int) ([]*StatsData, error) {
 	/*
 	   nvml fields to be reported to stats api     # nvml_library_call
 	   1  - Used Memory                            # nvmlDeviceGetMemoryInfo
@@ -164,33 +169,36 @@ func (c *nvmlClient) GetStatsData() ([]*StatsData, error) {
 		return nil, fmt.Errorf("nvidia nvml DeviceCount() error: %v\n", err)
 	}
 
-	allNvidiaGPUStats := make([]*StatsData, numDevices)
-
+	allNvidiaGPUStats := make([]*StatsData, numDevices*uint(shared))
+	var index = 0
 	for i := 0; i < int(numDevices); i++ {
 		deviceInfo, deviceStatus, err := c.driver.DeviceInfoAndStatusByIndex(uint(i))
 		if err != nil {
 			return nil, fmt.Errorf("nvidia nvml DeviceInfoAndStatusByIndex() error: %v\n", err)
 		}
-
-		allNvidiaGPUStats[i] = &StatsData{
-			DeviceData: &DeviceData{
-				DeviceName: deviceInfo.Name,
-				UUID:       deviceInfo.UUID,
-				MemoryMiB:  deviceInfo.MemoryMiB,
-				PowerW:     deviceInfo.PowerW,
-				BAR1MiB:    deviceInfo.BAR1MiB,
-			},
-			PowerUsageW:        deviceStatus.PowerUsageW,
-			GPUUtilization:     deviceStatus.GPUUtilization,
-			MemoryUtilization:  deviceStatus.MemoryUtilization,
-			EncoderUtilization: deviceStatus.EncoderUtilization,
-			DecoderUtilization: deviceStatus.DecoderUtilization,
-			TemperatureC:       deviceStatus.TemperatureC,
-			UsedMemoryMiB:      deviceStatus.UsedMemoryMiB,
-			BAR1UsedMiB:        deviceStatus.BAR1UsedMiB,
-			ECCErrorsL1Cache:   deviceStatus.ECCErrorsL1Cache,
-			ECCErrorsL2Cache:   deviceStatus.ECCErrorsL2Cache,
-			ECCErrorsDevice:    deviceStatus.ECCErrorsDevice,
+		for j := range shared {
+			allNvidiaGPUStats[index] = &StatsData{
+				DeviceData: &DeviceData{
+					DeviceName: deviceInfo.Name,
+					VID:        fmt.Sprintf("nvd-%d-%d", i, j),
+					UUID:       deviceInfo.UUID,
+					MemoryMiB:  deviceInfo.MemoryMiB,
+					PowerW:     deviceInfo.PowerW,
+					BAR1MiB:    deviceInfo.BAR1MiB,
+				},
+				PowerUsageW:        deviceStatus.PowerUsageW,
+				GPUUtilization:     deviceStatus.GPUUtilization,
+				MemoryUtilization:  deviceStatus.MemoryUtilization,
+				EncoderUtilization: deviceStatus.EncoderUtilization,
+				DecoderUtilization: deviceStatus.DecoderUtilization,
+				TemperatureC:       deviceStatus.TemperatureC,
+				UsedMemoryMiB:      deviceStatus.UsedMemoryMiB,
+				BAR1UsedMiB:        deviceStatus.BAR1UsedMiB,
+				ECCErrorsL1Cache:   deviceStatus.ECCErrorsL1Cache,
+				ECCErrorsL2Cache:   deviceStatus.ECCErrorsL2Cache,
+				ECCErrorsDevice:    deviceStatus.ECCErrorsDevice,
+			}
+			index++
 		}
 	}
 	return allNvidiaGPUStats, nil
