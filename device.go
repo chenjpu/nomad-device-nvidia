@@ -129,7 +129,6 @@ func NewNvidiaDevice(_ context.Context, log hclog.Logger) *NvidiaDevice {
 		shardedDevices: make(map[string]string),
 		nvmlClient:     nvmlClient,
 		initErr:        err,
-		sharded:        8,
 	}
 }
 

@@ -121,7 +121,7 @@ func (c *nvmlClient) GetFingerprintData(shared int) (*FingerprintData, error) {
 			allNvidiaGPUResources[index] = &FingerprintDeviceData{
 				DeviceData: &DeviceData{
 					DeviceName: deviceInfo.Name,
-					VID:        fmt.Sprintf("%s-v%d", deviceInfo.UUID[0:12], j),
+					VID:        fmt.Sprintf("%s-v%02d", deviceInfo.UUID[0:12], j),
 					UUID:       deviceInfo.UUID,
 					MemoryMiB:  deviceInfo.MemoryMiB,
 					PowerW:     deviceInfo.PowerW,
@@ -180,7 +180,7 @@ func (c *nvmlClient) GetStatsData(shared int) ([]*StatsData, error) {
 			allNvidiaGPUStats[index] = &StatsData{
 				DeviceData: &DeviceData{
 					DeviceName: deviceInfo.Name,
-					VID:        fmt.Sprintf("%s-v%d", deviceInfo.UUID[0:12], j),
+					VID:        fmt.Sprintf("%s-v%02d", deviceInfo.UUID[0:12], j),
 					UUID:       deviceInfo.UUID,
 					MemoryMiB:  deviceInfo.MemoryMiB,
 					PowerW:     deviceInfo.PowerW,
