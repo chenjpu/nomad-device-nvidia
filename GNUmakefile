@@ -19,10 +19,17 @@ help: ## Display this usage information
 .PHONY: clean
 clean: ## Cleanup previous build
 	@echo "==> Cleanup previous build"
-	rm -f ./bin/nomad-device-nvidia
+	rm -f ./bin/nomad-device-*
 
 pkg/%/nomad-device-nvidia: GO_OUT ?= $@
 pkg/%/nomad-device-nvidia: ## Build nomad-device-nvidia for GOOS_GOARCH, e.g. pkg/linux_amd64/nomad-device-nvidia
+	@echo "==> Building $@ with tags $(GO_TAGS)..."
+	@GOOS=$(firstword $(subst _, ,$*)) \
+		GOARCH=$(lastword $(subst _, ,$*)) \
+		go build -trimpath -ldflags $(GO_LDFLAGS) -tags "$(GO_TAGS)" -o $(GO_OUT) cmd/main.go
+
+pkg/%/nomad-device-vnd: GO_OUT ?= $@
+pkg/%/nomad-device-vnd: ## Build nomad-device-nvidia for GOOS_GOARCH, e.g. pkg/linux_amd64/nomad-device-nvidia
 	@echo "==> Building $@ with tags $(GO_TAGS)..."
 	@GOOS=$(firstword $(subst _, ,$*)) \
 		GOARCH=$(lastword $(subst _, ,$*)) \
@@ -41,6 +48,10 @@ bin/nomad-device-nvidia:
 	mkdir -p bin
 	go build -o bin/nomad-device-nvidia cmd/main.go
 
+bin/nomad-device-vnd:
+	@echo "==> Building device driver ..."
+	mkdir -p bin
+	go build -o bin/nomad-device-vnd cmd/main.go
 .PHONY: test
 test: ## Run unit tests
 	@echo "==> Running tests ..."
